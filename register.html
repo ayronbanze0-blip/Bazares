@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Criar conta — Bazares</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="topbar"></header>
+<div class="overlay" id="overlay"></div>
+<aside id="sidebar" class="closed"></aside>
+<div id="main">
+  <div class="pg-body">
+    <div class="auth-wrap auth-wrap-lg">
+      <div class="auth-logo">
+        <div class="lg">
+          <div class="logo-mark-sm">B</div>
+          BAZ<span style="color:var(--b-400)">ARES</span>
+        </div>
+        <p style="font-size:13px;margin-top:6px;color:var(--t3)">Crie a sua conta gratuita</p>
+      </div>
+      <form class="card" id="reg-form" style="border-radius:var(--rxxl);padding:30px;box-shadow:var(--sh-md)">
+        <h3 style="margin-bottom:6px">Bem-vindo ao Bazares</h3>
+        <p style="font-size:13px;color:var(--t3);margin-bottom:22px">Preencha os dados abaixo para começar</p>
+
+        <div class="fg"><label>Nome completo</label><input type="text" id="rname" placeholder="O seu nome completo" required></div>
+        <div class="fg"><label>Email</label><input type="email" id="remail" placeholder="nome@email.com" autocomplete="email" required></div>
+        <div class="row2">
+          <div class="fg"><label>Palavra-passe</label><input type="password" id="rpw" placeholder="Mínimo 6 caracteres" required></div>
+          <div class="fg"><label>Confirmar palavra-passe</label><input type="password" id="rpw2" placeholder="Repetir palavra-passe" required></div>
+        </div>
+        <div class="fg">
+          <label>Tipo de conta</label>
+          <select id="rrole">
+            <option value="BUYER">🛒 Comprador — quero comprar produtos</option>
+            <option value="SELLER">🏪 Vendedor — quero vender produtos</option>
+          </select>
+        </div>
+        <div class="fg" id="ref-fg" style="display:none">
+          <label>Código de referência (opcional)</label>
+          <input type="text" id="rref" placeholder="Código de quem o referiu">
+        </div>
+
+        <button class="btn btn-primary btn-block" type="submit" id="reg-btn" style="font-size:14px;padding:13px;border-radius:var(--rl);margin-top:4px">
+          Criar conta gratuita
+        </button>
+        <p style="font-size:11px;color:var(--t4);text-align:center;margin-top:12px;line-height:1.6">
+          Ao criar conta, aceita os <a href="support.html" style="color:var(--b-500)">Termos de uso</a> e a <a href="support.html" style="color:var(--b-500)">Política de privacidade</a> do Bazares.
+        </p>
+      </form>
+      <p style="text-align:center;margin-top:18px;font-size:13px;color:var(--t3)">
+        Já tem conta? <a href="login.html" style="color:var(--b-500);font-weight:700">Iniciar sessão →</a>
+      </p>
+    </div>
+  </div>
+</div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+initPage({ active: 'register.html', onReady: (user) => {
+  if (user) { go('dashboard.html'); return; }
+
+  // Show ref field
+  const refCode = getParam('ref');
+  if (refCode) {
+    document.getElementById('ref-fg').style.display = '';
+    document.getElementById('rref').value = refCode;
+  }
+  document.getElementById('rrole').addEventListener('change', (e) => {
+    document.getElementById('ref-fg').style.display = e.target.value === 'SELLER' ? '' : 'none';
+  });
+
+  document.getElementById('reg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('rname').value.trim();
+    const email = document.getElementById('remail').value.trim();
+    const password = document.getElementById('rpw').value;
+    const confirm = document.getElementById('rpw2').value;
+    const role = document.getElementById('rrole').value;
+    const referralCode = document.getElementById('rref').value.trim() || undefined;
+
+    if (!name || !email || !password) { toast('Preencha todos os campos obrigatórios.', 'warn'); return; }
+    if (password !== confirm) { toast('As palavras-passe não coincidem.', 'err'); return; }
+    if (password.length < 6) { toast('A palavra-passe deve ter pelo menos 6 caracteres.', 'warn'); return; }
+
+    const btn = document.getElementById('reg-btn');
+    setLoading(btn, true);
+    try {
+      await api.post('/auth/register', { name, email, password, role, referralCode });
+      toast('Conta criada! Verifique o seu email.', 'ok');
+      setTimeout(() => go('verify-email.html', { email }), 800);
+    } catch (err) {
+      setLoading(btn, false);
+      toast(apiErrorMessage(err), 'err');
+    }
+  });
+}});
+</script>
+</body>
+</html>
