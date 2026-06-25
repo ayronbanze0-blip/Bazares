@@ -93,8 +93,12 @@ initPage({ active: 'register.html', onReady: (user) => {
     setLoading(btn, true);
     try {
       await api.post('/auth/register', { name, email, password, role, referralCode });
-      toast('Conta criada! Verifique o seu email.', 'ok');
-      setTimeout(() => go('verify-email.html', { email }), 800);
+
+toast('Conta criada com sucesso!', 'ok');
+
+setTimeout(() => {
+  go('login.html');
+}, 800);
     } catch (err) {
       setLoading(btn, false);
       toast(apiErrorMessage(err), 'err');
