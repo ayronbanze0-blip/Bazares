@@ -63,7 +63,16 @@ model User {
   reports           Report[]  @relation("ReportsByUser")
   reportsAgainst    Report[]  @relation("ReportsAgainstUser")
   invitesCreated    RevendedorInvite[] @relation("InviteCreator")
+  transactions      Transaction[]      @relation("SellerTransactions")
   loginAttempts     LoginAttempt[]
+
+  // Wallet system
+  wallet              Wallet?
+  depositRequests     DepositRequest[]
+  withdrawalRequests  WithdrawalRequest[]
+  commissionPayments  CommissionPayment[]   @relation("SellerCommissionPayments")
+  reviewedDeposits    DepositRequest[]      @relation("DepositReviewedBy")
+  reviewedWithdrawals WithdrawalRequest[]   @relation("WithdrawalReviewedBy")
 
   @@index([email])
   @@index([role])
@@ -348,6 +357,7 @@ model Transaction {
   orderId   String?         @unique
   order     Order?          @relation(fields: [orderId], references: [id])
   sellerId  String
+  seller    User            @relation("SellerTransactions", fields: [sellerId], references: [id])
   type      TransactionType
   amount    Float
   fee       Float           @default(0)
@@ -501,4 +511,154 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// WALLET — saldo interno, extracto, transferências
+// ─────────────────────────────────────────────
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+
+  @@index([userId])
+}
+
+model WalletTransaction {
+  id           String              @id @default(uuid())
+  walletId     String
+  wallet       Wallet              @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type         WalletTxType
+  amount       Float               // sempre positivo; o sinal é dado pelo "type"
+  balanceAfter Float               // saldo da wallet imediatamente após este movimento
+  description  String
+  status       WalletTxStatus      @default(CONCLUIDA)
+  referenceType String?            // ex: "ORDER", "DEPOSIT", "WITHDRAWAL", "COMMISSION", "TRANSFER"
+  referenceId   String?            // id da entidade relacionada
+  createdAt    DateTime            @default(now())
+
+  @@index([walletId])
+  @@index([type])
+  @@index([referenceType, referenceId])
+}
+
+enum WalletTxType {
+  CREDITO_DEPOSITO
+  DEBITO_LEVANTAMENTO
+  TRANSFERENCIA_ENVIADA
+  TRANSFERENCIA_RECEBIDA
+  DEBITO_COMISSAO
+  CREDITO_COMISSAO
+  AJUSTE_ADMIN
+}
+
+enum WalletTxStatus {
+  CONCLUIDA
+  PENDENTE
+  REJEITADA
+  REVERTIDA
+}
+
+enum PaymentMethod {
+  MPESA
+  EMOLA
+}
+
+// ─────────────────────────────────────────────
+// DEPOSITS — carregamento manual de saldo (comprovativo)
+// ─────────────────────────────────────────────
+model DepositRequest {
+  id          String         @id @default(uuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      PaymentMethod
+  proofUrl    String?
+  reference   String?
+  status      DepositStatus  @default(PENDENTE)
+  reviewedById String?
+  reviewedBy   User?         @relation("DepositReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt  DateTime?
+  rejectReason String?
+  createdAt   DateTime       @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum DepositStatus {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+// ─────────────────────────────────────────────
+// WITHDRAWALS — levantamento manual (admin paga fora do sistema)
+// ─────────────────────────────────────────────
+model WithdrawalRequest {
+  id           String            @id @default(uuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       PaymentMethod
+  destination  String            // número de telefone M-Pesa/e-Mola
+  status       WithdrawalStatus  @default(PENDENTE)
+  reviewedById String?
+  reviewedBy   User?             @relation("WithdrawalReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  rejectReason String?
+  notes        String?
+  createdAt    DateTime          @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum WithdrawalStatus {
+  PENDENTE
+  PAGO
+  REJEITADO
+}
+
+// ─────────────────────────────────────────────
+// COMMISSION PAYMENTS — pagamento da contribuição de plataforma
+// (substitui o fluxo antigo de comprovativo manual)
+// ─────────────────────────────────────────────
+model CommissionPayment {
+  id              String              @id @default(uuid())
+  bazarId         String
+  sellerId        String
+  seller          User                @relation("SellerCommissionPayments", fields: [sellerId], references: [id])
+  amount          Float
+  method          CommissionMethod
+  status          CommissionStatus    @default(PENDENTE)
+  msisdn          String?             // telefone usado no STK push (método ZUMBOPAY)
+  gatewayReference String?            // referência devolvida pela ZumboPay
+  gatewayChannel   String?            // "mpesa" | "emola"
+  failReason      String?
+  createdAt       DateTime            @default(now())
+  paidAt          DateTime?
+
+  @@index([bazarId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([gatewayReference])
+}
+
+enum CommissionMethod {
+  WALLET
+  ZUMBOPAY
+  MANUAL
+}
+
+enum CommissionStatus {
+  PENDENTE
+  PROCESSANDO
+  PAGA
+  FALHADA
 }
